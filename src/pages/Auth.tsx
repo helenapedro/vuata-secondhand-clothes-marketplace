@@ -53,9 +53,9 @@ export default function Auth() {
     if (!validateForm()) {
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
@@ -73,9 +73,9 @@ export default function Auth() {
             },
           },
         });
-
+    
         if (error) throw error;
-        
+    
         if (data?.user) {
           toast.success('Conta criada com sucesso!');
           navigate('/');
@@ -85,21 +85,24 @@ export default function Auth() {
           email,
           password,
         });
-        
+    
         if (error) throw error;
-        
+    
         toast.success('Login realizado com sucesso!');
         navigate('/');
       }
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Error:', error); 
       let message = 'Ocorreu um erro. Por favor, tente novamente.';
       
-      if (error.message.includes('Email not confirmed')) {
+      if (error instanceof Error && error.message.includes('Email not confirmed')) {
         message = 'Por favor, confirme seu email antes de fazer login';
-      } else if (error.message.includes('Invalid login credentials')) {
+      } else if (error instanceof Error && error.message.includes('Invalid login credentials')) {
         message = 'Email ou senha incorretos';
-      } else if (error.message.includes('User already registered')) {
+      } else if (error instanceof Error && error.message.includes('User already registered')) {
         message = 'Este email já está registrado';
+      } else if (error instanceof Error) {
+        message = error.message; 
       }
       
       toast.error(message);
@@ -107,6 +110,7 @@ export default function Auth() {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="max-w-md mx-auto">

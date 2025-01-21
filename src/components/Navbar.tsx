@@ -68,7 +68,7 @@ export default function Navbar() {
                 {userRole === 'vendedor' && (
                   <Link
                     to="/sell"
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                    className="bg-indigo-600 text-white px-0.5 py-0.5 rounded-md hover:bg-indigo-700"
                   >
                     Vender Item
                   </Link>
