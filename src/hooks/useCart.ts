@@ -1,32 +1,55 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { CartItem } from '../types';
+import { auth, db } from '../config/firebase';
+import { supabase } from '../lib/supabase'; 
+import { CartItem, Product } from '../types';
 import toast from 'react-hot-toast';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, query, where, getDocs, addDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export function useCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchCart();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchCart(user.uid);
+      } else {
+        setCartItems([]);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  async function fetchCart() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        const { data, error } = await supabase
-          .from('cart_items')
-          .select(`
-            *,
-            product:products(*)
-          `)
-          .eq('user_id', session.user.id);
+  async function fetchCart(userId: string) {
+    setLoading(true);
 
-        if (error) throw error;
-        setCartItems(data || []);
-      }
+    try {
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const items = querySnapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id, user_id: userId, quantity: doc.data().quantity, product_id: doc.data().product_id }));
+
+      // Fetch product details from Supabase
+      const productIds = items.map(item => item.product_id);
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('*')
+        .in('id', productIds);
+
+      if (error) throw error;
+
+      // Combine cart items with product details
+      const cartItemsWithDetails = items.map(item => {
+        const product = products.find(p => p.id === item.product_id);
+        return {
+          ...item,
+          product: product as Product,
+        };
+      });
+
+      setCartItems(cartItemsWithDetails);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
@@ -35,28 +58,33 @@ export function useCart() {
   }
 
   async function addToCart(productId: string) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast.error('Por favor, faça login para adicionar itens ao carrinho');
-        return false;
-      }
+    const user = auth.currentUser;
 
-      const { error } = await supabase
-        .from('cart_items')
-        .upsert({
-          user_id: session.user.id,
+    if (!user) {
+      toast.error('Por favor, faça login para adicionar itens ao carrinho');
+      return false;
+    }
+
+    try {
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', user.uid), where('product_id', '==', productId));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        await addDoc(collection(db, 'cart_items'), {
+          user_id: user.uid,
           product_id: productId,
           quantity: 1
-        }, {
-          onConflict: 'user_id,product_id'
         });
+      } else {
+        const docRef = querySnapshot.docs[0].ref;
+        await setDoc(docRef, {
+          user_id: user.uid,
+          product_id: productId,
+          quantity: 1
+        }, { merge: true });
+      }
 
-      if (error) throw error;
-      
       toast.success('Item adicionado ao carrinho');
-      await fetchCart();
+      await fetchCart(user.uid);
       return true;
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -66,21 +94,19 @@ export function useCart() {
   }
 
   async function removeFromCart(productId: string) {
+    const user = auth.currentUser;
+
+    if (!user) return;
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) return;
-
-      const { error } = await supabase
-        .from('cart_items')
-        .delete()
-        .eq('user_id', session.user.id)
-        .eq('product_id', productId);
-
-      if (error) throw error;
-      
-      toast.success('Item removido do carrinho');
-      await fetchCart();
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', user.uid), where('product_id', '==', productId));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        await deleteDoc(docRef);
+        toast.success('Item removido do carrinho');
+        await fetchCart(user.uid);
+      }
     } catch (error) {
       console.error('Error removing from cart:', error);
       toast.error('Erro ao remover item do carrinho');

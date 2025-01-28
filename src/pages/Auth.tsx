@@ -1,6 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { auth } from '../config/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  sendSignInLinkToEmail 
+} from 'firebase/auth';
 import toast from 'react-hot-toast';
 
 export default function Auth() {
@@ -49,68 +54,46 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-  
+
     setLoading(true);
-  
+
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-              role,
-              ...(role === 'vendedor' && {
-                whatsapp,
-                identity_number: identityNumber,
-                linkedin_url: linkedinUrl || null,
-              }),
-            },
-          },
-        });
-    
-        if (error) throw error;
-    
-        if (data?.user) {
-          toast.success('Conta criada com sucesso!');
-          navigate('/');
-        }
+        await createUserWithEmailAndPassword(auth, email, password);
+        toast.success('Conta criada com sucesso!');
+        navigate('/');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-    
-        if (error) throw error;
-    
+        await signInWithEmailAndPassword(auth, email, password);
         toast.success('Login realizado com sucesso!');
         navigate('/');
       }
     } catch (error) {
-      console.error('Error:', error); 
+      console.error('Error:', error);
       let message = 'Ocorreu um erro. Por favor, tente novamente.';
-      
-      if (error instanceof Error && error.message.includes('Email not confirmed')) {
-        message = 'Por favor, confirme seu email antes de fazer login';
-      } else if (error instanceof Error && error.message.includes('Invalid login credentials')) {
-        message = 'Email ou senha incorretos';
-      } else if (error instanceof Error && error.message.includes('User already registered')) {
-        message = 'Este email já está registrado';
-      } else if (error instanceof Error) {
-        message = error.message; 
+
+      if (error instanceof Error) {
+        message = error.message;
       }
-      
+
       toast.error(message);
     } finally {
       setLoading(false);
     }
   };
-  
+
+  const handleEmailLinkSignIn = async () => {
+    const actionCodeSettings = {
+      url: 'http://localhost:3000',
+      handleCodeInApp: true,
+    };
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    toast.success('Link de login enviado para o email!');
+    window.localStorage.setItem('emailForSignIn', email);
+  };
 
   return (
     <div className="max-w-md mx-auto">
@@ -235,6 +218,12 @@ export default function Auth() {
         {isSignUp
           ? 'Já tem uma conta? Entre'
           : 'Não tem uma conta? Cadastre-se'}
+      </button>
+      <button
+        onClick={handleEmailLinkSignIn}
+        className="mt-4 text-sm text-indigo-600 hover:text-indigo-500"
+      >
+        Entrar com link de email
       </button>
     </div>
   );
