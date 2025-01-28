@@ -1,43 +1,42 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
-import { UserIcon } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { auth, db } from '../config/firebase'; 
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { User as UserIcon, LogOut } from 'lucide-react';
 import CartButton from './CartButton';
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const [user, setUser] = React.useState<User | null>(null);
-  const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserRole(session.user.id);
-      }
-    });
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserRole(session.user.id);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('Auth state changed:', user);
+      setLoading(true); 
+      setUser(user);
+      if (user) {
+        fetchUserRole(user.uid).then(() => setLoading(false));
       } else {
         setUserRole(null);
+        setLoading(false);
       }
     });
+
+    return () => unsubscribe();
   }, []);
 
   const fetchUserRole = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      if (!error && data) {
-        setUserRole(data.role);
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('Fetched user role:', userData.role);
+        setUserRole(userData.role);
+      } else {
+        console.log('User document does not exist');
       }
     } catch (error) {
       console.error('Error fetching user role:', error);
@@ -45,7 +44,7 @@ export default function Navbar() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
     navigate('/auth');
   };
 
@@ -63,17 +62,20 @@ export default function Navbar() {
           </Link>
 
           <div className="flex items-center space-x-4">
-            {user ? (
+            {loading ? (
+              <span>Loading...</span>
+            ) : user ? (
               <>
-                {userRole === 'vendedor' && (
+                {userRole === 'vendedor' ? (
                   <Link
                     to="/sell"
-                    className="bg-indigo-600 text-white px-0.5 py-0.5 rounded-md hover:bg-indigo-700"
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
                   >
                     Vender Item
                   </Link>
+                ) : (
+                  <CartButton />
                 )}
-                <CartButton />
                 <Link to="/profile" className="text-gray-600 hover:text-gray-900">
                   <UserIcon className="w-6 h-6" />
                 </Link>
@@ -96,5 +98,5 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
-  );
-}
+  )
+};

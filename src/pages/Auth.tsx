@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendSignInLinkToEmail 
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore'; // Import Firestore methods
 import toast from 'react-hot-toast';
 
 export default function Auth() {
@@ -63,7 +64,20 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Save user details in Firestore
+        await setDoc(doc(db, 'users', user.uid), {
+          id: user.uid,
+          email,
+          full_name: fullName,
+          role,
+          whatsapp,
+          identity_number: identityNumber,
+          linkedin_url: linkedinUrl,
+        });
+
         toast.success('Conta criada com sucesso!');
         navigate('/');
       } else {
@@ -87,7 +101,7 @@ export default function Auth() {
 
   const handleEmailLinkSignIn = async () => {
     const actionCodeSettings = {
-      url: 'http://localhost:3000',
+      url: 'http://localhost:5173',
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
