@@ -7,15 +7,6 @@ import { doc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import AuthLayout from '../forms/AuthLayout';
 
-const API_URL = import.meta.env.VITE_HEROKU_API_URL;
-
-// const api = axios.create({
-//   baseURL: API_URL,
-//   headers: {
-//     "Content-Type": "application/json",
-//   },
-// });
-
 export default function Auth() {
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
@@ -87,11 +78,6 @@ export default function Auth() {
 
         // Call the API to define custom claims
 
-        // await api.post('/api/setCustomClaims', {
-        //   uid: user.uid,
-        //   role,
-        // }); 
-
         toast.success('Conta criada com sucesso!');
         navigate('/');
       } else {
@@ -122,13 +108,14 @@ export default function Auth() {
 
   const handleEmailLinkSignIn = async () => {
     const actionCodeSettings = {
-      url: `${API_URL}/api/setCustomClaims`,
+      url: `${window.location.origin}/auth`,
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
     toast.success('Link de login enviado para o email!');
     window.localStorage.setItem('emailForSignIn', email);
   };
+  
 
   const handleToggleAuth = () => setIsSignUp(!isSignUp);
 
