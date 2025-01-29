@@ -13,5 +13,36 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.fbAsyncInit = function () {
+        FB.init({
+          appId: "944731287373856",
+          cookie: true, // Enable cookies to allow the server to access the session.
+          xfbml: true, // Parse social plugins on this webpage.
+          version: "v22.0", // Use this Graph API version for this call.
+        });
+
+        FB.getLoginStatus(function (response) {
+          // Called after the JS SDK has been initialized.
+          statusChangeCallback(response); // Returns the login status.
+        });
+      };
+
+      (function (d, s, id) {
+        var js,
+          fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {
+          return;
+        }
+        js = d.createElement(s);
+        js.id = id;
+        js.src = "https://connect.facebook.net/en_US/sdk.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      })(document, "script", "facebook-jssdk");
+    </script>
+
+    <fb:login-button scope="public_profile,email" onlogin="checkLoginState();"
+      >Entrar com o facebook</fb:login-button
+    >
   </body>
 </html>
