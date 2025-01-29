@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth } from '../config/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -16,9 +18,16 @@ export default function NewProduct() {
     condition: 'Como Novo',
     category_id: '',
   });
+  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseUser | null>(null);
 
   React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+
     fetchCategories();
+
+    return () => unsubscribe();
   }, []);
 
   async function fetchCategories() {
@@ -40,8 +49,7 @@ export default function NewProduct() {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Por favor, faça login para listar um item');
+      if (!firebaseUser) throw new Error('Por favor, faça login para listar um item');
 
       const mediaUrls = [];
       for (const file of mediaFiles) {
@@ -72,7 +80,7 @@ export default function NewProduct() {
           size: formData.size,
           condition: formData.condition,
           category_id: formData.category_id,
-          seller_id: user.id,
+          seller_id: firebaseUser.uid,
           image_url: mediaUrls[0]?.media_url || '',
         })
         .select()

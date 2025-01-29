@@ -1,13 +1,20 @@
 import React from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  sendSignInLinkToEmail 
-} from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore'; // Import Firestore methods
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendSignInLinkToEmail } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import AuthLayout from '../forms/AuthLayout';
+
+const API_URL = import.meta.env.VITE_HEROKU_API_URL;
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -78,10 +85,24 @@ export default function Auth() {
           linkedin_url: linkedinUrl,
         });
 
+        // Call the API to define custom claims
+
+        // await api.post('/api/setCustomClaims', {
+        //   uid: user.uid,
+        //   role,
+        // }); 
+
         toast.success('Conta criada com sucesso!');
         navigate('/');
       } else {
         await signInWithEmailAndPassword(auth, email, password);
+        
+        const user = auth.currentUser;
+        if (user) {
+          const token = await user.getIdToken();
+          localStorage.setItem('accessToken', token);
+        }
+
         toast.success('Login realizado com sucesso!');
         navigate('/');
       }
@@ -101,7 +122,7 @@ export default function Auth() {
 
   const handleEmailLinkSignIn = async () => {
     const actionCodeSettings = {
-      url: 'http://localhost:5173',
+      url: `${API_URL}/api/setCustomClaims`,
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
@@ -109,136 +130,29 @@ export default function Auth() {
     window.localStorage.setItem('emailForSignIn', email);
   };
 
+  const handleToggleAuth = () => setIsSignUp(!isSignUp);
+
   return (
-    <div className="max-w-md mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-center">
-        {isSignUp ? 'Criar Conta' : 'Bem-vindo de Volta'}
-      </h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {isSignUp && (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Nome Completo
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                required
-                minLength={3}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Tipo de Conta
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                required
-              >
-                <option value="cliente">Cliente</option>
-                <option value="vendedor">Vendedor</option>
-              </select>
-            </div>
-            {role === 'vendedor' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    WhatsApp
-                  </label>
-                  <input
-                    type="tel"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    placeholder="+244 XXX XXX XXX"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Nº Bilhete de Identidade
-                  </label>
-                  <input
-                    type="text"
-                    value={identityNumber}
-                    onChange={(e) => setIdentityNumber(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    LinkedIn URL (opcional)
-                  </label>
-                  <input
-                    type="url"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    placeholder="https://linkedin.com/in/seu-perfil"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  />
-                </div>
-              </>
-            )}
-          </>
-        )}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Email
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Senha
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            required
-            minLength={6}
-          />
-          {isSignUp && (
-            <p className="mt-1 text-sm text-gray-500">
-              Mínimo de 6 caracteres
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {loading ? 'Processando...' : isSignUp ? 'Criar Conta' : 'Entrar'}
-        </button>
-      </form>
-      <button
-        onClick={() => setIsSignUp(!isSignUp)}
-        className="mt-4 text-sm text-indigo-600 hover:text-indigo-500"
-      >
-        {isSignUp
-          ? 'Já tem uma conta? Entre'
-          : 'Não tem uma conta? Cadastre-se'}
-      </button>
-      <button
-        onClick={handleEmailLinkSignIn}
-        className="mt-4 text-sm text-indigo-600 hover:text-indigo-500"
-      >
-        Entrar com link de email
-      </button>
-    </div>
+    <AuthLayout
+      isSignUp={isSignUp}
+      loading={loading}
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      fullName={fullName}
+      setFullName={isSignUp ? setFullName : undefined}
+      role={role}
+      setRole={isSignUp ? setRole : undefined}
+      whatsapp={whatsapp}
+      setWhatsapp={isSignUp && role === 'vendedor' ? setWhatsapp : undefined}
+      identityNumber={identityNumber}
+      setIdentityNumber={isSignUp && role === 'vendedor' ? setIdentityNumber : undefined}
+      linkedinUrl={linkedinUrl}
+      setLinkedinUrl={isSignUp && role === 'vendedor' ? setLinkedinUrl : undefined}
+      handleSubmit={handleSubmit}
+      handleToggleAuth={handleToggleAuth}
+      handleEmailLinkSignIn={handleEmailLinkSignIn}
+    />
   );
 }

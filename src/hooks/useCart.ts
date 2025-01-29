@@ -1,21 +1,23 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '../config/firebase';
-import { supabase } from '../lib/supabase'; 
-import { CartItem, Product } from '../types';
+import { supabase } from '../lib/supabase';
+import { CartItem } from '../types';
 import toast from 'react-hot-toast';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, addDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { User, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 export function useCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      console.log('setFirebaseUser:', user);
       if (user) {
-        fetchCart(user.uid);
+        fetchCart(user);
       } else {
-        setCartItems([]);
         setLoading(false);
       }
     });
@@ -23,33 +25,18 @@ export function useCart() {
     return () => unsubscribe();
   }, []);
 
-  async function fetchCart(userId: string) {
-    setLoading(true);
-
+  async function fetchCart(user: User) {
     try {
-      const q = query(collection(db, 'cart_items'), where('user_id', '==', userId));
-      const querySnapshot = await getDocs(q);
-      const items = querySnapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id, user_id: userId, quantity: doc.data().quantity, product_id: doc.data().product_id }));
-
-      // Fetch product details from Supabase
-      const productIds = items.map(item => item.product_id);
-      const { data: products, error } = await supabase
-        .from('products')
-        .select('*')
-        .in('id', productIds);
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select(`
+          *,
+          product:products(*)
+        `)
+        .eq('user_id', user.uid);
 
       if (error) throw error;
-
-      // Combine cart items with product details
-      const cartItemsWithDetails = items.map(item => {
-        const product = products.find(p => p.id === item.product_id);
-        return {
-          ...item,
-          product: product as Product,
-        };
-      });
-
-      setCartItems(cartItemsWithDetails);
+      setCartItems(data || []);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
@@ -58,33 +45,38 @@ export function useCart() {
   }
 
   async function addToCart(productId: string) {
-    const user = auth.currentUser;
-
-    if (!user) {
-      toast.error('Por favor, faça login para adicionar itens ao carrinho');
-      return false;
-    }
-
     try {
-      const q = query(collection(db, 'cart_items'), where('user_id', '==', user.uid), where('product_id', '==', productId));
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        await addDoc(collection(db, 'cart_items'), {
-          user_id: user.uid,
-          product_id: productId,
-          quantity: 1
-        });
-      } else {
-        const docRef = querySnapshot.docs[0].ref;
-        await setDoc(docRef, {
-          user_id: user.uid,
-          product_id: productId,
-          quantity: 1
-        }, { merge: true });
+      if (!firebaseUser) {
+        toast.error('Por favor, faça login para adicionar itens ao carrinho');
+        return false;
       }
 
+      // Check stock availability
+      const { data: product } = await supabase
+        .from('products')
+        .select('stock')
+        .eq('id', productId)
+        .single();
+
+      if (!product || product.stock < 1) {
+        toast.error('Produto fora de estoque');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from('cart_items')
+        .upsert({
+          user_id: firebaseUser.uid,
+          product_id: productId,
+          quantity: 1
+        }, {
+          onConflict: 'user_id,product_id'
+        });
+
+      if (error) throw error;
+      
       toast.success('Item adicionado ao carrinho');
-      await fetchCart(user.uid);
+      await fetchCart(firebaseUser);
       return true;
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -93,20 +85,38 @@ export function useCart() {
     }
   }
 
-  async function removeFromCart(productId: string) {
-    const user = auth.currentUser;
-
-    if (!user) return;
-
+  async function updateQuantity(productId: string, quantity: number) {
     try {
-      const q = query(collection(db, 'cart_items'), where('user_id', '==', user.uid), where('product_id', '==', productId));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const docRef = querySnapshot.docs[0].ref;
-        await deleteDoc(docRef);
-        toast.success('Item removido do carrinho');
-        await fetchCart(user.uid);
-      }
+      if (!firebaseUser) return;
+
+      const { error } = await supabase
+        .from('cart_items')
+        .update({ quantity })
+        .eq('user_id', firebaseUser.uid)
+        .eq('product_id', productId);
+
+      if (error) throw error;
+      await fetchCart(firebaseUser);
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Erro ao atualizar quantidade');
+    }
+  }
+
+  async function removeFromCart(productId: string) {
+    try {
+      if (!firebaseUser) return;
+
+      const { error } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('user_id', firebaseUser.uid)
+        .eq('product_id', productId);
+
+      if (error) throw error;
+      
+      toast.success('Item removido do carrinho');
+      await fetchCart(firebaseUser);
     } catch (error) {
       console.error('Error removing from cart:', error);
       toast.error('Erro ao remover item do carrinho');
@@ -121,6 +131,7 @@ export function useCart() {
     loading,
     addToCart,
     removeFromCart,
+    updateQuantity,
     totalItems,
     totalPrice,
   };
