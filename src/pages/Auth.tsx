@@ -133,7 +133,7 @@ export default function Auth() {
         message = error.message;
       }
 
-      toast.error(message);
+      toast.error('Credenciais inválidas, por favor verifique o seu email ou password.');
     } finally {
       setLoading(false);
     }
