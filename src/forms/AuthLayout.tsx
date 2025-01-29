@@ -152,6 +152,17 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({
           {loading ? 'Processando...' : isSignUp ? 'Criar Conta' : 'Entrar'}
         </button>
       </form>
+      <p className="mt-4 text-sm text-gray-600 text-center">
+        Ao continuar, você concorda com nossos
+        <a 
+          href="https://vuata-terms-portal.lovable.app/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-indigo-600 hover:underline ml-1"
+        >
+          Termos e Serviços
+        </a>.
+      </p>
       <button onClick={handleToggleAuth} className="mt-4 text-sm text-indigo-600 hover:text-indigo-500">
         {isSignUp ? 'Já tem uma conta? Entre' : 'Não tem uma conta? Cadastre-se'}
       </button>
