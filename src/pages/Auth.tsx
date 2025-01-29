@@ -1,5 +1,5 @@
 import React from 'react';
-import axios from 'axios';
+//import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendSignInLinkToEmail } from 'firebase/auth';
@@ -9,12 +9,12 @@ import AuthLayout from '../forms/AuthLayout';
 
 const API_URL = import.meta.env.VITE_HEROKU_API_URL;
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+// const api = axios.create({
+//   baseURL: API_URL,
+//   headers: {
+//     "Content-Type": "application/json",
+//   },
+// });
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -96,7 +96,7 @@ export default function Auth() {
         navigate('/');
       } else {
         await signInWithEmailAndPassword(auth, email, password);
-        
+
         const user = auth.currentUser;
         if (user) {
           const token = await user.getIdToken();
