@@ -1,8 +1,13 @@
-import React from 'react';
-//import axios from 'axios';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendSignInLinkToEmail } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink
+} from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import AuthLayout from '../forms/AuthLayout';
@@ -18,6 +23,36 @@ export default function Auth() {
   const [identityNumber, setIdentityNumber] = React.useState('');
   const [linkedinUrl, setLinkedinUrl] = React.useState('');
   const [isSignUp, setIsSignUp] = React.useState(false);
+
+  useEffect(() => {
+    // Check if the URL contains a sign-in link
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      // Get the email from localStorage
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        // Prompt the user to provide their email if it's not available
+        email = window.prompt('Please provide your email for confirmation');
+      }
+      if (email) {
+        // Sign in the user with the email link
+        signInWithEmailLink(auth, email, window.location.href)
+          .then((result) => {
+            // Clear the email from localStorage
+            window.localStorage.removeItem('emailForSignIn');
+            // Store the token in localStorage
+            result.user.getIdToken().then((token) => {
+              localStorage.setItem('accessToken', token);
+            });
+            toast.success('Login realizado com sucesso!');
+            navigate('/');
+          })
+          .catch((error) => {
+            console.error('Error signing in with email link:', error);
+            toast.error('Erro ao fazer login com o link de email');
+          });
+      }
+    }
+  }, [navigate]);
 
   const validateForm = () => {
     if (!email || !password) {
@@ -76,8 +111,6 @@ export default function Auth() {
           linkedin_url: linkedinUrl,
         });
 
-        // Call the API to define custom claims
-
         toast.success('Conta criada com sucesso!');
         navigate('/');
       } else {
@@ -115,7 +148,6 @@ export default function Auth() {
     toast.success('Link de login enviado para o email!');
     window.localStorage.setItem('emailForSignIn', email);
   };
-  
 
   const handleToggleAuth = () => setIsSignUp(!isSignUp);
 
