@@ -135,6 +135,7 @@ export function useCart() {
   const totalPrice = cartItems.reduce((sum, item) => sum + (item.quantity * item.product.price), 0);
 
   console.log('Total items:', totalItems);
+  console.log('Cart items for totalItems calculation:', cartItems);
 
   return {
     cartItems,
