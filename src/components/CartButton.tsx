@@ -5,6 +5,8 @@ import { useCart } from '../hooks/useCart';
 export default function CartButton() {
   const { totalItems } = useCart();
 
+  console.log('Total items in CartButton:', totalItems);
+
   return (
     <Link to="/cart" className="relative">
       <ShoppingCart className="w-6 h-6 text-gray-600 hover:text-gray-900" />

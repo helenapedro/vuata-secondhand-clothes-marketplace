@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../config/firebase'; 
+import { db } from '../config/firebase';
 import { CartItem, Product } from '../types';
 import toast from 'react-hot-toast';
 import { User, onAuthStateChanged } from 'firebase/auth';
@@ -15,7 +15,6 @@ export function useCart() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
-      console.log('setFirebaseUser:', user);
       if (user) {
         fetchCart(user);
       } else {
@@ -34,7 +33,6 @@ export function useCart() {
       for (const doc of querySnapshot.docs) {
         const itemData = doc.data() as CartItem;
 
-        // Fetch product details from Supabase
         const { data: productData, error: productError } = await supabase
           .from('products')
           .select('*')
@@ -50,6 +48,7 @@ export function useCart() {
         });
       }
       setCartItems(items);
+      console.log('Cart items:', items);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
@@ -64,7 +63,6 @@ export function useCart() {
         return false;
       }
 
-      // Check stock availability from Supabase
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('stock')
@@ -135,6 +133,8 @@ export function useCart() {
 
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = cartItems.reduce((sum, item) => sum + (item.quantity * item.product.price), 0);
+
+  console.log('Total items:', totalItems);
 
   return {
     cartItems,
