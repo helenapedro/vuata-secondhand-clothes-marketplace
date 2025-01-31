@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { CartItem } from '../types';
+import { db } from '../config/firebase'; 
+import { CartItem, Product } from '../types';
 import toast from 'react-hot-toast';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 export function useCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -27,16 +28,28 @@ export function useCart() {
 
   async function fetchCart(user: User) {
     try {
-      const { data, error } = await supabase
-        .from('cart_items')
-        .select(`
-          *,
-          product:products(*)
-        `)
-        .eq('user_id', user.uid);
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      const items: CartItem[] = [];
+      for (const doc of querySnapshot.docs) {
+        const itemData = doc.data() as CartItem;
 
-      if (error) throw error;
-      setCartItems(data || []);
+        // Fetch product details from Supabase
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', itemData.product_id)
+          .single();
+
+        if (productError) throw productError;
+
+        items.push({
+          ...itemData,
+          id: doc.id,
+          product: productData as Product,
+        });
+      }
+      setCartItems(items);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
@@ -51,30 +64,26 @@ export function useCart() {
         return false;
       }
 
-      // Check stock availability
-      const { data: product } = await supabase
+      // Check stock availability from Supabase
+      const { data: productData, error: productError } = await supabase
         .from('products')
         .select('stock')
         .eq('id', productId)
         .single();
 
-      if (!product || product.stock < 1) {
+      if (productError) throw productError;
+
+      if (!productData || productData.stock < 1) {
         toast.error('Produto fora de estoque');
         return false;
       }
 
-      const { error } = await supabase
-        .from('cart_items')
-        .upsert({
-          user_id: firebaseUser.uid,
-          product_id: productId,
-          quantity: 1
-        }, {
-          onConflict: 'user_id,product_id'
-        });
+      await addDoc(collection(db, 'cart_items'), {
+        user_id: firebaseUser.uid,
+        product_id: productId,
+        quantity: 1
+      });
 
-      if (error) throw error;
-      
       toast.success('Item adicionado ao carrinho');
       await fetchCart(firebaseUser);
       return true;
@@ -89,13 +98,14 @@ export function useCart() {
     try {
       if (!firebaseUser) return;
 
-      const { error } = await supabase
-        .from('cart_items')
-        .update({ quantity })
-        .eq('user_id', firebaseUser.uid)
-        .eq('product_id', productId);
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', firebaseUser.uid), where('product_id', '==', productId));
+      const querySnapshot = await getDocs(q);
 
-      if (error) throw error;
+      querySnapshot.forEach(async (cartDoc) => {
+        const cartDocRef = doc(db, 'cart_items', cartDoc.id);
+        await updateDoc(cartDocRef, { quantity });
+      });
+
       await fetchCart(firebaseUser);
     } catch (error) {
       console.error('Error updating quantity:', error);
@@ -107,14 +117,14 @@ export function useCart() {
     try {
       if (!firebaseUser) return;
 
-      const { error } = await supabase
-        .from('cart_items')
-        .delete()
-        .eq('user_id', firebaseUser.uid)
-        .eq('product_id', productId);
+      const q = query(collection(db, 'cart_items'), where('user_id', '==', firebaseUser.uid), where('product_id', '==', productId));
+      const querySnapshot = await getDocs(q);
 
-      if (error) throw error;
-      
+      querySnapshot.forEach(async (cartDoc) => {
+        const cartDocRef = doc(db, 'cart_items', cartDoc.id);
+        await deleteDoc(cartDocRef);
+      });
+
       toast.success('Item removido do carrinho');
       await fetchCart(firebaseUser);
     } catch (error) {
