@@ -2,18 +2,19 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
-import { supabase } from '../lib/supabase';
+import { auth } from '../config/firebase'; 
+import toast from 'react-hot-toast';
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cartItems, loading, removeFromCart, totalPrice } = useCart();
+  const { cartItems, loading, removeFromCart, updateQuantity, totalPrice } = useCart();
   const [checkingOut, setCheckingOut] = React.useState(false);
 
   const handleCheckout = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
+      const user = auth.currentUser; 
+
+      if (!user) {
         toast.error('Por favor, faça login para finalizar a compra');
         navigate('/auth');
         return;
@@ -79,8 +80,23 @@ export default function Cart() {
                   }).format(item.product.price)}
                 </p>
               </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded"
+                >
+                  -
+                </button>
+                <span className="text-gray-800">{item.quantity}</span>
+                <button
+                  onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded"
+                >
+                  +
+                </button>
+              </div>
               <button
-                onClick={() => removeFromCart(item.product.id)}
+                onClick={() => removeFromCart(item.product_id)}
                 className="text-red-600 hover:text-red-700"
               >
                 <Trash2 className="w-5 h-5" />

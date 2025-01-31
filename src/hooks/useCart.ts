@@ -48,7 +48,6 @@ export function useCart() {
         });
       }
       setCartItems(items);
-      console.log('Cart items:', items);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
@@ -76,11 +75,21 @@ export function useCart() {
         return false;
       }
 
-      await addDoc(collection(db, 'cart_items'), {
-        user_id: firebaseUser.uid,
-        product_id: productId,
-        quantity: 1
-      });
+      // Check if product already exists in cart
+      const existingCartItem = cartItems.find(item => item.product_id === productId);
+
+      if (existingCartItem) {
+        // Update quantity if product already exists
+        await updateDoc(doc(db, 'cart_items', existingCartItem.id), {
+          quantity: existingCartItem.quantity + 1
+        });
+      } else {
+        await addDoc(collection(db, 'cart_items'), {
+          user_id: firebaseUser.uid,
+          product_id: productId,
+          quantity: 1
+        });
+      }
 
       toast.success('Item adicionado ao carrinho');
       await fetchCart(firebaseUser);
@@ -133,9 +142,6 @@ export function useCart() {
 
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = cartItems.reduce((sum, item) => sum + (item.quantity * item.product.price), 0);
-
-  console.log('Total items:', totalItems);
-  console.log('Cart items for totalItems calculation:', cartItems);
 
   return {
     cartItems,
