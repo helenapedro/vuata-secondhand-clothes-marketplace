@@ -82,7 +82,7 @@ export default function Cart() {
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                  onClick={() => updateQuantity(item.product_id, Math.max(1, item.quantity - 1))}
                   className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded"
                 >
                   -
